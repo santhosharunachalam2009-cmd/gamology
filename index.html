@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Rush: The Last Bus - 12 Levels Edition</title>
+    <!-- Tailwind CSS for UI overlay styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons for UI -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap');
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: #090d16;
+            color: #f8fafc;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 12px;
+            background-color: #0f172a;
+        }
+
+        /* Glassmorphism overlays */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .hud-card {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Custom scrollbar for modals & level grid */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Glowing Effects */
+        .glow-yellow { box-shadow: 0 0 15px rgba(234, 179, 8, 0.4); }
+        .glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .glow-green { box-shadow: 0 0 15px rgba(34, 197, 94, 0.4); }
+
+        .level-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .level-card:hover:not(.locked) {
+            transform: translateY(-3px);
+            border-color: #f59e0b;
+        }
+        .level-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(0.8);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 bg-slate-950 text-slate-100">
+
+    <!-- Outer Main Wrapper -->
+    <div class="w-full max-w-5xl flex flex-col items-center">
+
+        <!-- Top Navigation / HUD Bar -->
+        <header class="w-full flex flex-wrap items-center justify-between gap-2 mb-3 px-2">
+            <div class="flex items-center space-x-3">
+                <button onclick="showLevelSelect()" class="bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-sm sm:text-base flex items-center gap-2 shadow-lg hover:brightness-110 transition cursor-pointer">
+                    <i class="fa-solid fa-bus text-lg"></i>
+                    <span>CAMPUS RUSH</span>
+                </button>
+                <div id="level-name-display" class="hidden sm:block text-xs font-extrabold text-amber-400 bg-slate-900/80 px-3 py-1 rounded-md border border-slate-800">
+                    L1: QUAD SPRINT
+                </div>
+            </div>
+
+            <!-- In-Game Controls Header -->
+            <div class="flex items-center gap-2">
+                <button id="btn-sound" onclick="toggleSound()" class="hud-card hover:bg-slate-700/80 text-slate-200 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                    <i id="sound-icon" class="fa-solid fa-volume-high text-amber-400"></i>
+                    <span id="sound-text" class="hidden sm:inline">Sound</span>
+                </button>
+                <button onclick="showLevelSelect()" class="hud-card hover:bg-slate-700/80 text-slate-200 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-map text-amber-400"></i>
+                    <span class="hidden sm:inline">Levels</span>
+                </button>
+                <button id="btn-pause" onclick="togglePause()" class="hud-card hover:bg-slate-700/80 text-slate-200 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-pause text-blue-400"></i>
+                    <span class="hidden sm:inline">Pause</span>
+                </button>
+                <button onclick="restartCurrentLevel()" class="hud-card hover:bg-slate-700/80 text-slate-200 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-rotate-right text-emerald-400"></i>
+                    <span class="hidden sm:inline">Restart</span>
+                </button>
+                <button onclick="showModal('instructions-modal')" class="hud-card hover:bg-slate-700/80 text-slate-200 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-circle-info text-purple-400"></i>
+                    <span class="hidden sm:inline">Help</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats HUD -->
+        <div class="w-full grid grid-cols-4 gap-2 sm:gap-4 mb-2">
+            <div class="hud-card rounded-xl p-2 sm:p-2.5 text-center border-b-2 border-amber-500">
+                <div class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">Level</div>
+                <div id="hud-level" class="text-xs sm:text-lg font-extrabold text-amber-400">1 / 12</div>
+            </div>
+            <div class="hud-card rounded-xl p-2 sm:p-2.5 text-center border-b-2 border-red-500">
+                <div class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">Time Left</div>
+                <div id="hud-timer" class="text-xs sm:text-lg font-extrabold text-red-400">30.0s</div>
+            </div>
+            <div class="hud-card rounded-xl p-2 sm:p-2.5 text-center border-b-2 border-yellow-400">
+                <div class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">Coins</div>
+                <div id="hud-coins" class="text-xs sm:text-lg font-extrabold text-yellow-300">0</div>
+            </div>
+            <div class="hud-card rounded-xl p-2 sm:p-2.5 text-center border-b-2 border-emerald-400">
+                <div class="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider">Score</div>
+                <div id="hud-score" class="text-xs sm:text-lg font-extrabold text-emerald-400">0</div>
+            </div>
+        </div>
+
+        <!-- Speed Boost Active Gauge -->
+        <div id="boost-gauge-container" class="w-full mb-2 hidden transition-all duration-300">
+            <div class="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-cyan-500/40 p-0.5">
+                <div id="boost-gauge-fill" class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full w-full transition-all duration-75"></div>
+            </div>
+            <div class="text-center text-[10px] sm:text-xs font-bold text-cyan-300 tracking-wider mt-0.5 animate-pulse">
+                ⚡ ENERGY DRINK SPEED BOOST ACTIVE! ⚡
+            </div>
+        </div>
+
+        <!-- Main Game Canvas Container -->
+        <div id="game-container" class="w-full aspect-[9/5] relative rounded-xl overflow-hidden border border-slate-800">
+            <canvas id="gameCanvas" width="900" height="500" class="w-full h-full"></canvas>
+
+            <!-- ================= OVERLAY MODALS ================= -->
+
+            <!-- 1. START MENU MODAL -->
+            <div id="start-modal" class="absolute inset-0 glass-panel z-30 flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-md w-full">
+                    <div class="w-16 h-16 bg-amber-500 text-slate-950 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg shadow-amber-500/30">
+                        <i class="fa-solid fa-person-running"></i>
+                    </div>
+                    <h2 class="text-3xl font-black text-white mb-1 tracking-tight">CAMPUS RUSH</h2>
+                    <p class="text-amber-400 font-bold text-xs sm:text-sm mb-4">THE LAST BUS IS LEAVING ACROSS 12 CAMPUS ZONES!</p>
+                    
+                    <div class="bg-slate-900/80 p-4 rounded-xl text-xs text-slate-300 space-y-2 mb-6 text-left border border-slate-800">
+                        <p>🏃 <strong class="text-white">Goal:</strong> Navigate through 12 dynamic campus levels & reach the bus on time!</p>
+                        <p>⭐ <strong class="text-white">Star Ratings:</strong> Earn up to 3 stars per level based on speed & coin collection.</p>
+                        <p>⚡ <strong class="text-white">Power-ups:</strong> Grab Coffee for speed surges & Clocks for extra seconds.</p>
+                        <p>⚠️ <strong class="text-white">Hazards:</strong> Dodge moving patrol carts, skaters, chemical spills, and mud puddles.</p>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button onclick="startGame()" class="flex-1 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black py-3 px-4 rounded-xl shadow-lg transform transition active:scale-95 text-sm sm:text-base flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-play"></i> START RUNNING
+                        </button>
+                        <button onclick="showLevelSelect()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-extrabold py-3 px-4 rounded-xl border border-slate-700 text-sm flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-list"></i> LEVELS
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. LEVEL SELECT MODAL -->
+            <div id="level-select-modal" class="absolute inset-0 glass-panel z-40 hidden flex flex-col items-center justify-start p-4 sm:p-6 overflow-y-auto">
+                <div class="w-full max-w-3xl my-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h2 class="text-2xl sm:text-3xl font-black text-white flex items-center gap-2">
+                                <i class="fa-solid fa-map-location-dot text-amber-400"></i> SELECT CAMPUS LEVEL
+                            </h2>
+                            <p class="text-xs text-slate-400">Earn stars to track your best runs across 12 unique campus zones.</p>
+                        </div>
+                        <button onclick="hideModal('level-select-modal')" class="text-slate-400 hover:text-white text-xl bg-slate-800 w-9 h-9 rounded-full flex items-center justify-center border border-slate-700">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- Level Grid (12 Levels) -->
+                    <div id="level-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
+                        <!-- Dynamically Generated via JS -->
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs text-slate-400 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <div>Total Stars Earned: <span id="total-stars-count" class="text-amber-400 font-black text-sm">0 / 36</span> ⭐</div>
+                        <div>Career Score: <span id="career-score-count" class="text-emerald-400 font-black text-sm">0</span> pts</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. INSTRUCTIONS MODAL -->
+            <div id="instructions-modal" class="absolute inset-0 glass-panel z-50 hidden flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-lg w-full bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl text-left">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-extrabold text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-gamepad"></i> How To Play
+                        </h3>
+                        <button onclick="hideModal('instructions-modal')" class="text-slate-400 hover:text-white text-lg">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-4 text-xs sm:text-sm text-slate-300 max-h-[60vh] overflow-y-auto pr-1">
+                        <div>
+                            <span class="font-bold text-white block mb-1">🎮 Controls</span>
+                            <div class="flex gap-2">
+                                <span class="bg-slate-800 px-2 py-1 rounded border border-slate-700 font-mono text-amber-300">W A S D</span>
+                                <span>or</span>
+                                <span class="bg-slate-800 px-2 py-1 rounded border border-slate-700 font-mono text-amber-300">Arrow Keys</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="font-bold text-white block mb-1">🪙 Collectibles</span>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-yellow-400">Gold Coins:</strong> +100 score points each.</li>
+                                <li><strong class="text-cyan-400">Coffee / Energy Drink:</strong> 5-second +60% Speed Surge!</li>
+                                <li><strong class="text-emerald-400">Alarm Clock:</strong> Adds +5 extra seconds to countdown.</li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <span class="font-bold text-white block mb-1">🚧 Hazards & Routes</span>
+                            <ul class="list-disc pl-5 space-y-1">
+                                <li><strong class="text-amber-600">Mud & Chemical Puddles:</strong> Slows movement down by 50%.</li>
+                                <li><strong class="text-red-400">Guards, Skaters & Robot Carts:</strong> Pushes player back and wastes time.</li>
+                                <li><strong class="text-indigo-400">Campus Shortcuts:</strong> High-risk alleys save time but are packed with obstacles!</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <button onclick="hideModal('instructions-modal')" class="mt-6 w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition">
+                        Got It!
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. PAUSE MODAL -->
+            <div id="pause-modal" class="absolute inset-0 glass-panel z-40 hidden flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-xs w-full bg-slate-900/90 p-6 rounded-2xl border border-slate-800 shadow-2xl">
+                    <i class="fa-solid fa-pause text-4xl text-blue-400 mb-3"></i>
+                    <h3 class="text-2xl font-black text-white mb-4">GAME PAUSED</h3>
+                    <div class="space-y-3">
+                        <button onclick="togglePause()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl shadow transition cursor-pointer">
+                            Resume Game
+                        </button>
+                        <button onclick="restartCurrentLevel()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-xl transition cursor-pointer">
+                            Restart Level
+                        </button>
+                        <button onclick="showLevelSelect()" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold py-2.5 rounded-xl transition cursor-pointer">
+                            Level Select Menu
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. LEVEL COMPLETE MODAL -->
+            <div id="level-complete-modal" class="absolute inset-0 glass-panel z-40 hidden flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-md w-full bg-slate-900 p-6 rounded-2xl border border-emerald-500/30 shadow-2xl">
+                    <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-2 border border-emerald-500/40">
+                        <i class="fa-solid fa-flag-checkered"></i>
+                    </div>
+                    <h3 class="text-2xl font-black text-white mb-1">LEVEL COMPLETED!</h3>
+                    <p id="lc-subtitle" class="text-xs text-slate-400 mb-3">You reached the campus bus in time!</p>
+
+                    <!-- Star Rating Display -->
+                    <div id="lc-stars" class="text-3xl text-amber-400 space-x-2 mb-4">
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+
+                    <div class="bg-slate-950 p-4 rounded-xl space-y-2 text-sm text-left mb-6 border border-slate-800">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Time Remaining:</span>
+                            <span id="lc-time" class="font-bold text-red-400">0.0s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Time Bonus Score:</span>
+                            <span id="lc-time-bonus" class="font-bold text-emerald-400">+0 pts</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Coins Collected:</span>
+                            <span id="lc-coins" class="font-bold text-yellow-400">0</span>
+                        </div>
+                        <hr class="border-slate-800 my-1">
+                        <div class="flex justify-between text-base font-extrabold">
+                            <span class="text-white">Total Level Score:</span>
+                            <span id="lc-total" class="text-amber-400">0</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="showLevelSelect()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl transition cursor-pointer text-xs sm:text-sm">
+                            <i class="fa-solid fa-map mr-1"></i> LEVELS
+                        </button>
+                        <button id="btn-next-level" onclick="nextLevel()" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black py-3 rounded-xl shadow-lg transition cursor-pointer text-xs sm:text-sm">
+                            NEXT LEVEL <i class="fa-solid fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. GAME OVER MODAL -->
+            <div id="game-over-modal" class="absolute inset-0 glass-panel z-40 hidden flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-md w-full bg-slate-900 p-6 rounded-2xl border border-red-500/30 shadow-2xl">
+                    <div class="w-16 h-16 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-3 border border-red-500/40">
+                        <i class="fa-solid fa-clock text-3xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-black text-white mb-1">MISSED THE BUS!</h3>
+                    <p class="text-xs text-slate-400 mb-6">The clock ran out before you reached the exit stop.</p>
+
+                    <div class="flex gap-2">
+                        <button onclick="showLevelSelect()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl transition cursor-pointer text-xs sm:text-sm">
+                            <i class="fa-solid fa-map mr-1"></i> LEVELS
+                        </button>
+                        <button onclick="restartCurrentLevel()" class="flex-1 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-400 hover:to-rose-500 text-white font-black py-3 rounded-xl shadow-lg transition cursor-pointer text-xs sm:text-sm">
+                            <i class="fa-solid fa-rotate-right mr-1"></i> TRY AGAIN
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. FINAL VICTORY SUMMARY MODAL -->
+            <div id="final-summary-modal" class="absolute inset-0 glass-panel z-40 hidden flex flex-col items-center justify-center p-6 text-center">
+                <div class="max-w-md w-full bg-slate-900 p-6 rounded-2xl border border-yellow-500/40 shadow-2xl">
+                    <div class="w-20 h-20 bg-gradient-to-tr from-yellow-500 to-amber-300 text-slate-950 rounded-full flex items-center justify-center text-4xl mx-auto mb-3 shadow-lg shadow-yellow-500/30">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <h3 class="text-3xl font-black text-white mb-1">CAMPUS HERO!</h3>
+                    <p class="text-xs text-amber-400 font-bold mb-4">YOU CONQUERED ALL 12 CAMPUS LEVELS!</p>
+
+                    <div class="bg-slate-950 p-4 rounded-xl space-y-2 text-sm text-left mb-6 border border-slate-800">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400">Total Stars Earned:</span>
+                            <span id="fs-stars" class="text-xl font-black text-amber-400">36 / 36 ⭐</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Total Career Coins:</span>
+                            <span id="fs-coins" class="font-bold text-yellow-400">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Final Cumulative Score:</span>
+                            <span id="fs-score" class="font-bold text-emerald-400">0</span>
+                        </div>
+                    </div>
+
+                    <button onclick="showLevelSelect()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black py-3 rounded-xl shadow-lg transition cursor-pointer">
+                        BACK TO LEVEL SELECT
+                    </button>
+                </div>
+            </div>
+
+        </div> <!-- End Game Container -->
+
+        <!-- Bottom Touch Controls (Visible on mobile/tablet) -->
+        <div class="w-full mt-3 sm:hidden grid grid-cols-3 gap-2 max-w-xs mx-auto text-center">
+            <div></div>
+            <button ontouchstart="handleTouchStart('Up')" ontouchend="handleTouchEnd('Up')" class="bg-slate-800 active:bg-slate-700 py-3 rounded-xl text-lg"><i class="fa-solid fa-arrow-up"></i></button>
+            <div></div>
+            <button ontouchstart="handleTouchStart('Left')" ontouchend="handleTouchEnd('Left')" class="bg-slate-800 active:bg-slate-700 py-3 rounded-xl text-lg"><i class="fa-solid fa-arrow-left"></i></button>
+            <button ontouchstart="handleTouchStart('Down')" ontouchend="handleTouchEnd('Down')" class="bg-slate-800 active:bg-slate-700 py-3 rounded-xl text-lg"><i class="fa-solid fa-arrow-down"></i></button>
+            <button ontouchstart="handleTouchStart('Right')" ontouchend="handleTouchEnd('Right')" class="bg-slate-800 active:bg-slate-700 py-3 rounded-xl text-lg"><i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Game Engine -->
+    <script>
+        /* ==========================================================================
+           AUDIO SYNTHESIZER (Web Audio API - Pure JS, No External Assets)
+           ========================================================================== */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+            }
+
+            playCoin() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(987.77, this.ctx.currentTime); // B5
+                osc.frequency.exponentialRampToValueAtTime(1318.51, this.ctx.currentTime + 0.12); // E6
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playSpeedBoost() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(850, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playClock() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(900, this.ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playMud() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playBusHorn() {
+                if (this.muted || !this.ctx) return;
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc1.type = 'square';
+                osc2.type = 'square';
+                osc1.frequency.setValueAtTime(311.13, this.ctx.currentTime); // Eb4
+                osc2.frequency.setValueAtTime(370.00, this.ctx.currentTime); // F#4
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc1.start(); osc2.start();
+                osc1.stop(this.ctx.currentTime + 0.5);
+                osc2.stop(this.ctx.currentTime + 0.5);
+            }
+        }
+
+        const sound = new SoundFX();
+
+        /* ==========================================================================
+           GAME ENGINE & STATE MANAGEMENT
+           ========================================================================== */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Input Listener State
+        const keys = {};
+
+        // Local Storage Saved Data
+        let userProgress = JSON.parse(localStorage.getItem('campus_rush_progress')) || {
+            unlockedLevel: 1,
+            levelData: {} // { levelIndex: { stars: 0, highScore: 0 } }
+        };
+
+        // Game State Variables
+        let currentLevelIndex = 0;
+        let score = 0;
+        let totalCoins = 0;
+        let levelScore = 0;
+        let levelCoins = 0;
+        let timeLeft = 30;
+        let isPlaying = false;
+        let isPaused = false;
+        let lastTime = 0;
+
+        // Player State
+        const player = {
+            x: 50,
+            y: 250,
+            width: 24,
+            height: 24,
+            baseSpeed: 3.2,
+            speed: 3.2,
+            vx: 0,
+            vy: 0,
+            boostTimer: 0,
+            isSlowed: false,
+            animFrame: 0
+        };
+
+        // Level Entities Collections
+        let staticObstacles = [];
+        let movingObstacles = [];
+        let penaltyZones = [];
+        let collectibles = [];
+        let busZone = { x: 800, y: 200, width: 70, height: 90 };
+        let particles = [];
+        let floatingTexts = [];
+
+        /* ==========================================================================
+           12 DISTINCT LEVEL DESIGNS & MAP CONFIGURATIONS
+           ========================================================================== */
+        const levels = [
+            // LEVEL 1: Quad Sprint
+            {
+                name: "Quad Sprint",
+                subtitle: "Tutorial & Open Campus",
+                timeLimit: 28,
+                playerStart: { x: 40, y: 240 },
+                busZone: { x: 810, y: 210, width: 75, height: 85 },
+                bgTheme: "#1e293b",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' },
+                    { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 250, y: 150, width: 120, height: 200, color: '#475569', label: 'Library' },
+                    { x: 520, y: 80, width: 100, height: 140, color: '#475569', label: 'Canteen' }
+                ],
+                movingObstacles: [
+                    { x: 420, y: 235, width: 28, height: 28, vx: 2, vy: 0, minX: 400, maxX: 500, minY: 0, maxY: 0, color: '#ef4444', label: 'Cart' }
+                ],
+                penaltyZones: [
+                    { x: 400, y: 220, width: 60, height: 60, color: 'rgba(120, 53, 15, 0.55)', label: 'Mud' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 150, y: 240 }, { type: 'coin', x: 390, y: 100 }, { type: 'coin', x: 390, y: 380 }, { type: 'coin', x: 700, y: 240 },
+                    { type: 'coffee', x: 180, y: 80 }, { type: 'clock', x: 670, y: 100 }
+                ],
+                shortcutHints: [{ text: "⚡ RISKY ALLEY", x: 400, y: 210 }, { text: "🚶 SAFE WALKWAY", x: 370, y: 50 }]
+            },
+
+            // LEVEL 2: Library Alley
+            {
+                name: "Library Alley",
+                subtitle: "Narrow Passages & Benches",
+                timeLimit: 26,
+                playerStart: { x: 40, y: 80 },
+                busZone: { x: 810, y: 380, width: 75, height: 85 },
+                bgTheme: "#1a2332",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 180, y: 100, width: 40, height: 280, color: '#475569', label: 'Dorm' },
+                    { x: 340, y: 20, width: 140, height: 160, color: '#334155', label: 'Admin' },
+                    { x: 340, y: 320, width: 140, height: 140, color: '#334155', label: 'Auditorium' },
+                    { x: 600, y: 140, width: 100, height: 220, color: '#475569', label: 'Gym' }
+                ],
+                movingObstacles: [
+                    { x: 240, y: 60, width: 26, height: 26, vx: 0, vy: 2.5, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#f97316', label: 'Skater' },
+                    { x: 500, y: 235, width: 30, height: 30, vx: 3, vy: 0, minX: 490, maxX: 580, minY: 0, maxY: 0, color: '#ef4444', label: 'Cart' }
+                ],
+                penaltyZones: [
+                    { x: 230, y: 200, width: 80, height: 80, color: 'rgba(120, 53, 15, 0.6)', label: 'Mud' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 260 }, { type: 'coin', x: 270, y: 90 }, { type: 'coin', x: 540, y: 100 }, { type: 'coin', x: 740, y: 410 },
+                    { type: 'coffee', x: 270, y: 400 }, { type: 'clock', x: 540, y: 240 }
+                ],
+                shortcutHints: [{ text: "⚡ MUD SHORTCUT", x: 230, y: 185 }, { text: "🚶 DETOUR", x: 230, y: 30 }]
+            },
+
+            // LEVEL 3: Science Block Hazard
+            {
+                name: "Science Block Hazard",
+                subtitle: "Chemical Spills & Guards",
+                timeLimit: 25,
+                playerStart: { x: 40, y: 420 },
+                busZone: { x: 810, y: 50, width: 75, height: 85 },
+                bgTheme: "#0f1f2e",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 180, y: 180, width: 120, height: 300, color: '#334155', label: 'Chem Lab' },
+                    { x: 420, y: 0, width: 120, height: 300, color: '#334155', label: 'Physics' },
+                    { x: 650, y: 180, width: 100, height: 300, color: '#334155', label: 'Bio Hall' }
+                ],
+                movingObstacles: [
+                    { x: 330, y: 40, width: 28, height: 28, vx: 0, vy: 3, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#dc2626', label: 'Guard' },
+                    { x: 570, y: 440, width: 28, height: 28, vx: 0, vy: -3, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#dc2626', label: 'Guard' }
+                ],
+                penaltyZones: [
+                    { x: 320, y: 200, width: 80, height: 80, color: 'rgba(16, 185, 129, 0.45)', label: 'Acid Spill' },
+                    { x: 560, y: 200, width: 80, height: 80, color: 'rgba(16, 185, 129, 0.45)', label: 'Acid Spill' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 100 }, { type: 'coin', x: 350, y: 420 }, { type: 'coin', x: 590, y: 80 }, { type: 'coin', x: 770, y: 300 },
+                    { type: 'coffee', x: 80, y: 250 }, { type: 'clock', x: 590, y: 420 }
+                ],
+                shortcutHints: [{ text: "⚡ ACID GAUNTLET", x: 320, y: 180 }]
+            },
+
+            // LEVEL 4: Student Union Hub
+            {
+                name: "Student Union Hub",
+                subtitle: "Crowded Shortcuts & Fast Skaters",
+                timeLimit: 24,
+                playerStart: { x: 40, y: 240 },
+                busZone: { x: 810, y: 210, width: 75, height: 85 },
+                bgTheme: "#1e1b2e",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 200, y: 40, width: 140, height: 160, color: '#475569', label: 'Student Union' },
+                    { x: 200, y: 300, width: 140, height: 140, color: '#475569', label: 'Lounge' },
+                    { x: 520, y: 120, width: 140, height: 240, color: '#475569', label: 'Bookstore' }
+                ],
+                movingObstacles: [
+                    { x: 380, y: 60, width: 26, height: 26, vx: 0, vy: 4, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#f97316', label: 'Skater' },
+                    { x: 440, y: 420, width: 26, height: 26, vx: 0, vy: -4, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#f97316', label: 'Skater' }
+                ],
+                penaltyZones: [
+                    { x: 380, y: 210, width: 100, height: 80, color: 'rgba(120, 53, 15, 0.6)', label: 'Crowd Slow' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 100 }, { type: 'coin', x: 430, y: 80 }, { type: 'coin', x: 430, y: 400 }, { type: 'coin', x: 720, y: 240 },
+                    { type: 'coffee', x: 430, y: 240 }, { type: 'clock', x: 720, y: 80 }
+                ],
+                shortcutHints: [{ text: "⚡ SKATE ALLEY", x: 400, y: 190 }]
+            },
+
+            // LEVEL 5: Canteen Craze
+            {
+                name: "Canteen Craze",
+                subtitle: "Rolling Carts & Greasy Spills",
+                timeLimit: 24,
+                playerStart: { x: 40, y: 80 },
+                busZone: { x: 810, y: 400, width: 75, height: 85 },
+                bgTheme: "#241810",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 160, y: 120, width: 100, height: 240, color: '#573a1e', label: 'Kitchen' },
+                    { x: 380, y: 40, width: 120, height: 180, color: '#573a1e', label: 'Dining' },
+                    { x: 380, y: 300, width: 120, height: 150, color: '#573a1e', label: 'Pantry' },
+                    { x: 620, y: 140, width: 100, height: 200, color: '#573a1e', label: 'Café' }
+                ],
+                movingObstacles: [
+                    { x: 280, y: 80, width: 32, height: 32, vx: 3.5, vy: 0, minX: 280, maxX: 360, minY: 0, maxY: 0, color: '#ef4444', label: 'Food Cart' },
+                    { x: 520, y: 240, width: 32, height: 32, vx: 0, vy: 3.5, minX: 0, maxX: 0, minY: 200, maxY: 380, color: '#ef4444', label: 'Food Cart' }
+                ],
+                penaltyZones: [
+                    { x: 280, y: 200, width: 80, height: 100, color: 'rgba(234, 179, 8, 0.4)', label: 'Grease' },
+                    { x: 520, y: 80, width: 80, height: 80, color: 'rgba(234, 179, 8, 0.4)', label: 'Grease' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 240 }, { type: 'coin', x: 320, y: 80 }, { type: 'coin', x: 560, y: 400 }, { type: 'coin', x: 750, y: 240 },
+                    { type: 'coffee', x: 320, y: 400 }, { type: 'clock', x: 750, y: 80 }
+                ],
+                shortcutHints: [{ text: "⚡ GREASE SHORTCUT", x: 300, y: 180 }]
+            },
+
+            // LEVEL 6: Central Courtyard
+            {
+                name: "Central Courtyard",
+                subtitle: "Multi-path Choice & Time Clocks",
+                timeLimit: 26,
+                playerStart: { x: 40, y: 240 },
+                busZone: { x: 810, y: 210, width: 75, height: 85 },
+                bgTheme: "#152319",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 220, y: 180, width: 140, height: 140, color: '#334155', label: 'Fountain' },
+                    { x: 480, y: 40, width: 120, height: 140, color: '#334155', label: 'North Block' },
+                    { x: 480, y: 320, width: 120, height: 140, color: '#334155', label: 'South Block' }
+                ],
+                movingObstacles: [
+                    { x: 380, y: 100, width: 28, height: 28, vx: 0, vy: 3, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#ef4444', label: 'Mower' },
+                    { x: 630, y: 240, width: 28, height: 28, vx: 0, vy: -3, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#ef4444', label: 'Mower' }
+                ],
+                penaltyZones: [
+                    { x: 220, y: 40, width: 140, height: 100, color: 'rgba(120, 53, 15, 0.6)', label: 'Mud' },
+                    { x: 220, y: 360, width: 140, height: 100, color: 'rgba(120, 53, 15, 0.6)', label: 'Mud' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 120, y: 100 }, { type: 'coin', x: 290, y: 240 }, { type: 'coin', x: 440, y: 240 }, { type: 'coin', x: 720, y: 240 },
+                    { type: 'coffee', x: 290, y: 90 }, { type: 'clock', x: 290, y: 390 }, { type: 'clock', x: 630, y: 100 }
+                ],
+                shortcutHints: [{ text: "⚡ FOUNTAIN PASS", x: 290, y: 160 }]
+            },
+
+            // LEVEL 7: Auditorium Plaza
+            {
+                name: "Auditorium Plaza",
+                subtitle: "Wide Search Area & Distant Bus",
+                timeLimit: 25,
+                playerStart: { x: 40, y: 420 },
+                busZone: { x: 810, y: 40, width: 75, height: 85 },
+                bgTheme: "#241829",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 180, y: 220, width: 240, height: 240, color: '#475569', label: 'Main Stage' },
+                    { x: 500, y: 40, width: 140, height: 240, color: '#475569', label: 'Seating Hall' }
+                ],
+                movingObstacles: [
+                    { x: 440, y: 60, width: 28, height: 28, vx: 0, vy: 3.5, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#dc2626', label: 'Security' },
+                    { x: 660, y: 300, width: 28, height: 28, vx: 3, vy: 0, minX: 660, maxX: 780, minY: 0, maxY: 0, color: '#dc2626', label: 'Security' }
+                ],
+                penaltyZones: [
+                    { x: 440, y: 220, width: 40, height: 200, color: 'rgba(120, 53, 15, 0.65)' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 200 }, { type: 'coin', x: 300, y: 120 }, { type: 'coin', x: 570, y: 320 }, { type: 'coin', x: 740, y: 200 },
+                    { type: 'coffee', x: 300, y: 180 }, { type: 'clock', x: 740, y: 400 }
+                ],
+                shortcutHints: [{ text: "⚡ STAGE ALLEY", x: 430, y: 200 }]
+            },
+
+            // LEVEL 8: Engineering Lab Express
+            {
+                name: "Engineering Lab Express",
+                subtitle: "Fast Moving Robot Carts",
+                timeLimit: 23,
+                playerStart: { x: 40, y: 240 },
+                busZone: { x: 810, y: 210, width: 75, height: 85 },
+                bgTheme: "#0f2027",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 180, y: 40, width: 80, height: 320, color: '#334155', label: 'Robotics' },
+                    { x: 360, y: 140, width: 80, height: 320, color: '#334155', label: 'Circuit Lab' },
+                    { x: 540, y: 40, width: 80, height: 320, color: '#334155', label: 'Mech Workshop' }
+                ],
+                movingObstacles: [
+                    { x: 280, y: 40, width: 30, height: 30, vx: 0, vy: 4.5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#0284c7', label: 'Bot Cart' },
+                    { x: 460, y: 440, width: 30, height: 30, vx: 0, vy: -4.5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#0284c7', label: 'Bot Cart' },
+                    { x: 640, y: 40, width: 30, height: 30, vx: 0, vy: 4.5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#0284c7', label: 'Bot Cart' }
+                ],
+                penaltyZones: [
+                    { x: 280, y: 200, width: 60, height: 80, color: 'rgba(16, 185, 129, 0.4)' },
+                    { x: 460, y: 200, width: 60, height: 80, color: 'rgba(16, 185, 129, 0.4)' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 100 }, { type: 'coin', x: 310, y: 400 }, { type: 'coin', x: 490, y: 80 }, { type: 'coin', x: 720, y: 240 },
+                    { type: 'coffee', x: 100, y: 380 }, { type: 'clock', x: 720, y: 80 }
+                ],
+                shortcutHints: [{ text: "⚡ ROBOT CORRIDOR", x: 280, y: 180 }]
+            },
+
+            // LEVEL 9: Athletic Track & Turf
+            {
+                name: "Athletic Track & Turf",
+                subtitle: "Long Sprint & Heavy Mud Traps",
+                timeLimit: 22,
+                playerStart: { x: 40, y: 80 },
+                busZone: { x: 810, y: 380, width: 75, height: 85 },
+                bgTheme: "#062319",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 200, y: 120, width: 220, height: 240, color: '#15803d', label: 'Soccer Turf' },
+                    { x: 500, y: 120, width: 200, height: 240, color: '#15803d', label: 'Bleachers' }
+                ],
+                movingObstacles: [
+                    { x: 100, y: 380, width: 26, height: 26, vx: 4, vy: 0, minX: 80, maxX: 750, minY: 0, maxY: 0, color: '#f97316', label: 'Sprinter' },
+                    { x: 750, y: 60, width: 26, height: 26, vx: -4, vy: 0, minX: 80, maxX: 750, minY: 0, maxY: 0, color: '#f97316', label: 'Sprinter' }
+                ],
+                penaltyZones: [
+                    { x: 430, y: 120, width: 60, height: 240, color: 'rgba(120, 53, 15, 0.7)', label: 'Deep Mud' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 240 }, { type: 'coin', x: 310, y: 240 }, { type: 'coin', x: 600, y: 240 }, { type: 'coin', x: 750, y: 240 },
+                    { type: 'coffee', x: 460, y: 240 }, { type: 'clock', x: 750, y: 100 }
+                ],
+                shortcutHints: [{ text: "⚡ MUD TRACK", x: 440, y: 100 }]
+            },
+
+            // LEVEL 10: The Dormitory Maze
+            {
+                name: "The Dormitory Maze",
+                subtitle: "Complex Walls & Tight Corners",
+                timeLimit: 24,
+                playerStart: { x: 40, y: 420 },
+                busZone: { x: 810, y: 50, width: 75, height: 85 },
+                bgTheme: "#211a2e",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 120, y: 120, width: 140, height: 260, color: '#475569', label: 'Dorm A' },
+                    { x: 340, y: 20, width: 120, height: 260, color: '#475569', label: 'Dorm B' },
+                    { x: 340, y: 360, width: 280, height: 100, color: '#475569', label: 'Dorm C' },
+                    { x: 540, y: 100, width: 140, height: 180, color: '#475569', label: 'Dorm D' }
+                ],
+                movingObstacles: [
+                    { x: 280, y: 40, width: 28, height: 28, vx: 0, vy: 3, minX: 0, maxX: 0, minY: 30, maxY: 420, color: '#dc2626', label: 'Warden' },
+                    { x: 500, y: 280, width: 28, height: 28, vx: 0, vy: -3, minX: 0, maxX: 0, minY: 30, maxY: 340, color: '#dc2626', label: 'Warden' }
+                ],
+                penaltyZones: [
+                    { x: 280, y: 200, width: 50, height: 80, color: 'rgba(120, 53, 15, 0.6)' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 60, y: 200 }, { type: 'coin', x: 290, y: 390 }, { type: 'coin', x: 490, y: 50 }, { type: 'coin', x: 720, y: 300 },
+                    { type: 'coffee', x: 290, y: 50 }, { type: 'clock', x: 720, y: 100 }
+                ],
+                shortcutHints: [{ text: "⚡ ALLEY SHORTCUT", x: 280, y: 180 }]
+            },
+
+            // LEVEL 11: Construction Zone Rush
+            {
+                name: "Construction Zone Rush",
+                subtitle: "Narrow Scaffolding & Hazards",
+                timeLimit: 23,
+                playerStart: { x: 40, y: 240 },
+                busZone: { x: 810, y: 210, width: 75, height: 85 },
+                bgTheme: "#291b0f",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 180, y: 40, width: 140, height: 180, color: '#78350f', label: 'Scaffold A' },
+                    { x: 180, y: 300, width: 140, height: 140, color: '#78350f', label: 'Scaffold B' },
+                    { x: 460, y: 100, width: 160, height: 280, color: '#78350f', label: 'New Annex' }
+                ],
+                movingObstacles: [
+                    { x: 340, y: 60, width: 30, height: 30, vx: 0, vy: 4, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#ef4444', label: 'Forklift' },
+                    { x: 400, y: 420, width: 30, height: 30, vx: 0, vy: -4, minX: 0, maxX: 0, minY: 40, maxY: 420, color: '#ef4444', label: 'Forklift' }
+                ],
+                penaltyZones: [
+                    { x: 340, y: 200, width: 100, height: 80, color: 'rgba(234, 179, 8, 0.5)', label: 'Wet Cement' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 100, y: 100 }, { type: 'coin', x: 370, y: 80 }, { type: 'coin', x: 370, y: 400 }, { type: 'coin', x: 700, y: 240 },
+                    { type: 'coffee', x: 370, y: 240 }, { type: 'clock', x: 700, y: 80 }
+                ],
+                shortcutHints: [{ text: "⚡ CEMENT SHORTCUT", x: 350, y: 180 }]
+            },
+
+            // LEVEL 12: Grand Finale: The Main Gate
+            {
+                name: "The Main Gate",
+                subtitle: "Ultimate Gauntlet & Tight Clock",
+                timeLimit: 22,
+                playerStart: { x: 40, y: 420 },
+                busZone: { x: 810, y: 40, width: 75, height: 85 },
+                bgTheme: "#1e0b0b",
+                staticObstacles: [
+                    { x: 0, y: 0, width: 900, height: 20, color: '#334155' }, { x: 0, y: 480, width: 900, height: 20, color: '#334155' },
+                    { x: 150, y: 120, width: 100, height: 360, color: '#475569', label: 'Main Gate Block' },
+                    { x: 350, y: 0, width: 100, height: 340, color: '#475569', label: 'Security HQ' },
+                    { x: 550, y: 140, width: 100, height: 340, color: '#475569', label: 'Bell Tower' }
+                ],
+                movingObstacles: [
+                    { x: 270, y: 40, width: 30, height: 30, vx: 0, vy: 5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#dc2626', label: 'Elite Patrol' },
+                    { x: 470, y: 440, width: 30, height: 30, vx: 0, vy: -5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#dc2626', label: 'Elite Patrol' },
+                    { x: 670, y: 40, width: 30, height: 30, vx: 0, vy: 5, minX: 0, maxX: 0, minY: 30, maxY: 440, color: '#dc2626', label: 'Elite Patrol' }
+                ],
+                penaltyZones: [
+                    { x: 270, y: 200, width: 60, height: 100, color: 'rgba(120, 53, 15, 0.7)' },
+                    { x: 470, y: 150, width: 60, height: 100, color: 'rgba(120, 53, 15, 0.7)' },
+                    { x: 670, y: 200, width: 60, height: 100, color: 'rgba(120, 53, 15, 0.7)' }
+                ],
+                collectibles: [
+                    { type: 'coin', x: 80, y: 240 }, { type: 'coin', x: 290, y: 100 }, { type: 'coin', x: 490, y: 380 }, { type: 'coin', x: 690, y: 80 }, { type: 'coin', x: 790, y: 240 },
+                    { type: 'coffee', x: 80, y: 80 }, { type: 'coffee', x: 490, y: 50 }, { type: 'clock', x: 690, y: 420 }
+                ],
+                shortcutHints: [{ text: "⚡ FINAL GAUNTLET", x: 450, y: 460 }]
+            }
+        ];
+
+        /* ==========================================================================
+           CONTROLS & EVENT LISTENERS
+           ========================================================================== */
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            keys[e.key] = true;
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            keys[e.key] = false;
+        });
+
+        function handleTouchStart(dir) {
+            keys['Arrow' + dir] = true;
+        }
+        function handleTouchEnd(dir) {
+            keys['Arrow' + dir] = false;
+        }
+
+        /* ==========================================================================
+           GAME INITIALIZATION & LEVEL SELECTORS
+           ========================================================================== */
+        function renderLevelGrid() {
+            const gridContainer = document.getElementById('level-grid');
+            gridContainer.innerHTML = '';
+
+            let totalStars = 0;
+            let totalCareerScore = 0;
+
+            levels.forEach((lvl, idx) => {
+                const isUnlocked = idx + 1 <= userProgress.unlockedLevel;
+                const lvlData = userProgress.levelData[idx] || { stars: 0, highScore: 0 };
+
+                totalStars += lvlData.stars;
+                totalCareerScore += lvlData.highScore;
+
+                const card = document.createElement('div');
+                card.className = `level-card bg-slate-900 border ${isUnlocked ? 'border-slate-700 hover:border-amber-400 cursor-pointer' : 'locked border-slate-800'} rounded-xl p-3 flex flex-col justify-between`;
+
+                if (isUnlocked) {
+                    card.onclick = () => {
+                        hideModal('level-select-modal');
+                        loadLevel(idx);
+                        startGameSession();
+                    };
+                }
+
+                // Stars HTML
+                let starsHtml = '';
+                for (let s = 1; s <= 3; s++) {
+                    if (s <= lvlData.stars) {
+                        starsHtml += '<i class="fa-solid fa-star text-amber-400 text-xs"></i>';
+                    } else {
+                        starsHtml += '<i class="fa-regular fa-star text-slate-600 text-xs"></i>';
+                    }
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-xs font-black text-amber-400">LVL ${idx + 1}</span>
+                        ${isUnlocked ? `<div class="space-x-0.5">${starsHtml}</div>` : '<i class="fa-solid fa-lock text-slate-600 text-xs"></i>'}
+                    </div>
+                    <div class="font-extrabold text-sm text-white truncate mb-1">${lvl.name}</div>
+                    <div class="text-[10px] text-slate-400 truncate mb-2">${lvl.subtitle}</div>
+                    <div class="text-[10px] text-slate-500 font-mono text-right">
+                        ${lvlData.highScore > 0 ? `Best: ${lvlData.highScore}pts` : ''}
+                    </div>
+                `;
+
+                gridContainer.appendChild(card);
+            });
+
+            document.getElementById('total-stars-count').textContent = `${totalStars} / 36`;
+            document.getElementById('career-score-count').textContent = totalCareerScore;
+        }
+
+        function showLevelSelect() {
+            renderLevelGrid();
+            isPaused = true;
+            isPlaying = false;
+            showModal('level-select-modal');
+        }
+
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            const lvl = levels[currentLevelIndex];
+
+            // Reset Level Counters
+            timeLeft = lvl.timeLimit;
+            levelScore = 0;
+            levelCoins = 0;
+
+            // Load Entities
+            player.x = lvl.playerStart.x;
+            player.y = lvl.playerStart.y;
+            player.vx = 0;
+            player.vy = 0;
+            player.boostTimer = 0;
+            player.isSlowed = false;
+
+            busZone = { ...lvl.busZone };
+            staticObstacles = lvl.staticObstacles.map(o => ({ ...o }));
+            movingObstacles = lvl.movingObstacles.map(o => ({ ...o }));
+            penaltyZones = lvl.penaltyZones.map(p => ({ ...p }));
+            collectibles = lvl.collectibles.map(c => ({ ...c }));
+
+            particles = [];
+            floatingTexts = [];
+
+            document.getElementById('level-name-display').textContent = `L${index + 1}: ${lvl.name.toUpperCase()}`;
+            updateHUD();
+        }
+
+        function startGameSession() {
+            sound.init();
+            hideAllModals();
+            isPlaying = true;
+            isPaused = false;
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            loadLevel(0);
+            startGameSession();
+        }
+
+        function nextLevel() {
+            hideAllModals();
+            if (currentLevelIndex + 1 < levels.length) {
+                loadLevel(currentLevelIndex + 1);
+                startGameSession();
+            } else {
+                showFinalSummary();
+            }
+        }
+
+        function restartCurrentLevel() {
+            hideAllModals();
+            loadLevel(currentLevelIndex);
+            startGameSession();
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                showModal('pause-modal');
+            } else {
+                hideModal('pause-modal');
+                lastTime = performance.now();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function toggleSound() {
+            sound.muted = !sound.muted;
+            const icon = document.getElementById('sound-icon');
+            const text = document.getElementById('sound-text');
+            if (sound.muted) {
+                icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+                text.textContent = 'Muted';
+            } else {
+                icon.className = 'fa-solid fa-volume-high text-amber-400';
+                text.textContent = 'Sound';
+            }
+        }
+
+        /* ==========================================================================
+           PARTICLE & FLOATING TEXT SYSTEMS
+           ========================================================================== */
+        function createBurstParticles(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 3 + 2,
+                    color: color,
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.02
+                });
+            }
+        }
+
+        function addFloatingText(text, x, y, color = '#f59e0b') {
+            floatingTexts.push({
+                text: text,
+                x: x,
+                y: y,
+                vy: -1.2,
+                alpha: 1,
+                color: color
+            });
+        }
+
+        /* ==========================================================================
+           PHYSICS & COLLISION LOGIC
+           ========================================================================== */
+        function checkRectCollision(r1, r2) {
+            return (
+                r1.x < r2.x + r2.width &&
+                r1.x + r1.width > r2.x &&
+                r1.y < r2.y + r2.height &&
+                r1.y + r1.height > r2.y
+            );
+        }
+
+        function updatePhysics(dt) {
+            let currentSpeed = player.baseSpeed;
+
+            if (player.boostTimer > 0) {
+                player.boostTimer -= dt;
+                currentSpeed *= 1.6; // +60% Speed Boost
+                document.getElementById('boost-gauge-container').classList.remove('hidden');
+                document.getElementById('boost-gauge-fill').style.width = `${Math.max(0, (player.boostTimer / 5) * 100)}%`;
+                
+                if (Math.random() < 0.4) {
+                    particles.push({
+                        x: player.x + player.width / 2,
+                        y: player.y + player.height / 2,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        radius: 3,
+                        color: '#38bdf8',
+                        alpha: 0.8,
+                        decay: 0.05
+                    });
+                }
+            } else {
+                document.getElementById('boost-gauge-container').classList.add('hidden');
+            }
+
+            // Penalty Zone Check
+            player.isSlowed = false;
+            for (let p of penaltyZones) {
+                if (checkRectCollision(player, p)) {
+                    player.isSlowed = true;
+                    currentSpeed *= 0.5; // -50% Slowdown
+                    if (Math.random() < 0.08) sound.playMud();
+                    break;
+                }
+            }
+
+            player.speed = currentSpeed;
+
+            // Handle Controls Movement
+            player.vx = 0;
+            player.vy = 0;
+
+            if (keys['w'] || keys['a'] || keys['s'] || keys['d'] || keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
+                player.animFrame += 0.2;
+            }
+
+            if (keys['w'] || keys['ArrowUp']) player.vy = -player.speed;
+            if (keys['s'] || keys['ArrowDown']) player.vy = player.speed;
+            if (keys['a'] || keys['ArrowLeft']) player.vx = -player.speed;
+            if (keys['d'] || keys['ArrowRight']) player.vx = player.speed;
+
+            if (player.vx !== 0 && player.vy !== 0) {
+                player.vx *= 0.7071;
+                player.vy *= 0.7071;
+            }
+
+            // Apply X Movement & Static Collisions
+            player.x += player.vx;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+            for (let obs of staticObstacles) {
+                if (checkRectCollision(player, obs)) {
+                    if (player.vx > 0) player.x = obs.x - player.width;
+                    else if (player.vx < 0) player.x = obs.x + obs.width;
+                }
+            }
+
+            // Apply Y Movement & Static Collisions
+            player.y += player.vy;
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+
+            for (let obs of staticObstacles) {
+                if (checkRectCollision(player, obs)) {
+                    if (player.vy > 0) player.y = obs.y - player.height;
+                    else if (player.vy < 0) player.y = obs.y + obs.height;
+                }
+            }
+
+            // Update Moving Obstacles Position & Collisions
+            for (let mob of movingObstacles) {
+                mob.x += mob.vx;
+                mob.y += mob.vy;
+
+                if (mob.vx > 0 && mob.x >= mob.maxX) mob.vx *= -1;
+                if (mob.vx < 0 && mob.x <= mob.minX) mob.vx *= -1;
+                if (mob.vy > 0 && mob.y >= mob.maxY) mob.vy *= -1;
+                if (mob.vy < 0 && mob.y <= mob.minY) mob.vy *= -1;
+
+                if (checkRectCollision(player, mob)) {
+                    sound.playMud();
+                    addFloatingText("OUCH! PUSHED BACK", player.x - 20, player.y - 15, '#ef4444');
+                    player.x -= mob.vx * 4 || (player.vx > 0 ? 15 : -15);
+                    player.y -= mob.vy * 4 || (player.vy > 0 ? 15 : -15);
+                    createBurstParticles(player.x, player.y, '#ef4444', 8);
+                }
+            }
+
+            // Collectibles Intersections
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                let c = collectibles[i];
+                let cRect = { x: c.x - 10, y: c.y - 10, width: 20, height: 20 };
+                if (checkRectCollision(player, cRect)) {
+                    if (c.type === 'coin') {
+                        sound.playCoin();
+                        levelScore += 100;
+                        levelCoins++;
+                        addFloatingText("+100", c.x, c.y, '#fde047');
+                        createBurstParticles(c.x, c.y, '#fde047', 10);
+                    } else if (c.type === 'coffee') {
+                        sound.playSpeedBoost();
+                        player.boostTimer = 5;
+                        addFloatingText("SPEED SURGE! ⚡", c.x - 15, c.y, '#38bdf8');
+                        createBurstParticles(c.x, c.y, '#38bdf8', 15);
+                    } else if (c.type === 'clock') {
+                        sound.playClock();
+                        timeLeft += 5;
+                        addFloatingText("+5 SECONDS! ⏰", c.x - 15, c.y, '#34d399');
+                        createBurstParticles(c.x, c.y, '#34d399', 12);
+                    }
+                    collectibles.splice(i, 1);
+                    updateHUD();
+                }
+            }
+
+            // Goal Check (Bus Zone)
+            if (checkRectCollision(player, busZone)) {
+                sound.playBusHorn();
+                handleLevelComplete();
+            }
+
+            // Particles update
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            // Floating Text update
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.02;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+
+            // Countdown Timer Update
+            timeLeft -= dt;
+            if (timeLeft <= 0) {
+                timeLeft = 0;
+                handleGameOver();
+            }
+            updateHUD();
+        }
+
+        /* ==========================================================================
+           CANVAS RENDERING / GRAPHICS LOOP
+           ========================================================================== */
+        function render() {
+            const lvl = levels[currentLevelIndex];
+
+            // 1. Background Fill
+            ctx.fillStyle = lvl.bgTheme;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid Pattern overlay
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // 2. Render Penalty Mud / Chemical Puddles
+            penaltyZones.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.roundRect(p.x, p.y, p.width, p.height, 12);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                if (p.label) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '10px Outfit';
+                    ctx.fillText(p.label, p.x + 6, p.y + p.height / 2);
+                }
+            });
+
+            // 3. Render Shortcut Text Hints
+            if (lvl.shortcutHints) {
+                lvl.shortcutHints.forEach(hint => {
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = 'bold 11px Outfit';
+                    ctx.fillText(hint.text, hint.x, hint.y);
+                });
+            }
+
+            // 4. Render Static Obstacles (Buildings / Structures)
+            staticObstacles.forEach(obs => {
+                // Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                ctx.fillRect(obs.x + 4, obs.y + 4, obs.width, obs.height);
+
+                // Main Block
+                ctx.fillStyle = obs.color || '#475569';
+                ctx.beginPath();
+                ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 6);
+                ctx.fill();
+
+                // Roof Accent Border
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Building Label
+                if (obs.label) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = 'bold 11px Outfit';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(obs.label, obs.x + obs.width / 2, obs.y + obs.height / 2 + 4);
+                    ctx.textAlign = 'left';
+                }
+            });
+
+            // 5. Render Moving Hazards
+            movingObstacles.forEach(mob => {
+                ctx.fillStyle = mob.color || '#ef4444';
+                ctx.beginPath();
+                ctx.roundRect(mob.x, mob.y, mob.width, mob.height, 6);
+                ctx.fill();
+
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(mob.x + 4, mob.y + mob.height - 4);
+                ctx.lineTo(mob.x + mob.width - 4, mob.y + 4);
+                ctx.stroke();
+            });
+
+            // 6. Render Bus Goal Zone
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+            ctx.fillRect(busZone.x, busZone.y, busZone.width, busZone.height);
+
+            // Bus Graphic
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.roundRect(busZone.x + 10, busZone.y + 15, 55, 60, 8);
+            ctx.fill();
+            ctx.fillStyle = '#0284c7';
+            ctx.fillRect(busZone.x + 15, busZone.y + 20, 20, 50);
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(busZone.x + 15, busZone.y + 25, 4, 0, Math.PI * 2);
+            ctx.arc(busZone.x + 15, busZone.y + 65, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'black 12px Outfit';
+            ctx.fillText("LAST BUS", busZone.x + 10, busZone.y + 10);
+
+            // 7. Render Collectibles
+            collectibles.forEach(c => {
+                if (c.type === 'coin') {
+                    ctx.fillStyle = '#fde047';
+                    ctx.beginPath();
+                    ctx.arc(c.x, c.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ca8a04';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ca8a04';
+                    ctx.font = 'bold 9px Outfit';
+                    ctx.fillText('$', c.x - 3, c.y + 3);
+                } else if (c.type === 'coffee') {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(c.x - 6, c.y - 8, 12, 16);
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(c.x - 6, c.y - 4, 12, 5);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '9px Outfit';
+                    ctx.fillText('⚡', c.x - 4, c.y + 4);
+                } else if (c.type === 'clock') {
+                    ctx.fillStyle = '#34d399';
+                    ctx.beginPath();
+                    ctx.arc(c.x, c.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#059669';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = '#064e3b';
+                    ctx.font = 'bold 9px Outfit';
+                    ctx.fillText('+5', c.x - 5, c.y + 3);
+                }
+            });
+
+            // 8. Render Player Character
+            if (player.boostTimer > 0) {
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+                ctx.beginPath();
+                ctx.arc(player.x + player.width / 2, player.y + player.height / 2, 20, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (player.isSlowed) {
+                ctx.fillStyle = 'rgba(180, 83, 9, 0.4)';
+                ctx.beginPath();
+                ctx.arc(player.x + player.width / 2, player.y + player.height / 2, 18, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y, player.width, player.height, 6);
+            ctx.fill();
+            ctx.strokeStyle = '#1d4ed8';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Backpack
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(player.x - 3, player.y + 4, 4, 16);
+
+            // Eyes / Face direction
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(player.x + 14, player.y + 6, 4, 4);
+            ctx.fillRect(player.x + 14, player.y + 14, 4, 4);
+
+            // 9. Particles & Floating Texts
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = ft.alpha;
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 13px Outfit';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+        }
+
+        /* ==========================================================================
+           MAIN GAME LOOP
+           ========================================================================== */
+        function gameLoop(timestamp) {
+            if (!isPlaying || isPaused) return;
+
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            const safeDt = Math.min(dt, 0.1);
+
+            updatePhysics(safeDt);
+            render();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        /* ==========================================================================
+           HUD & MODAL SYSTEM MANAGERS
+           ========================================================================== */
+        function updateHUD() {
+            document.getElementById('hud-level').textContent = `${currentLevelIndex + 1} / ${levels.length}`;
+            document.getElementById('hud-timer').textContent = `${timeLeft.toFixed(1)}s`;
+            document.getElementById('hud-coins').textContent = levelCoins;
+            document.getElementById('hud-score').textContent = levelScore;
+        }
+
+        function handleLevelComplete() {
+            isPlaying = false;
+            const timeBonus = Math.floor(timeLeft * 25);
+            const totalLevelScore = levelScore + timeBonus;
+
+            // Calculate Stars Earned (1 to 3 stars based on speed & coins)
+            let stars = 1;
+            if (timeLeft > 8 && levelCoins >= 2) stars = 2;
+            if (timeLeft > 12 && levelCoins >= 3) stars = 3;
+
+            // Save Progress locally
+            if (currentLevelIndex + 1 >= userProgress.unlockedLevel) {
+                userProgress.unlockedLevel = Math.min(levels.length, currentLevelIndex + 2);
+            }
+
+            const existingLvlData = userProgress.levelData[currentLevelIndex] || { stars: 0, highScore: 0 };
+            userProgress.levelData[currentLevelIndex] = {
+                stars: Math.max(existingLvlData.stars, stars),
+                highScore: Math.max(existingLvlData.highScore, totalLevelScore)
+            };
+
+            localStorage.setItem('campus_rush_progress', JSON.stringify(userProgress));
+
+            // Populate Level Complete Modal
+            document.getElementById('lc-time').textContent = `${timeLeft.toFixed(1)}s`;
+            document.getElementById('lc-time-bonus').textContent = `+${timeBonus} pts`;
+            document.getElementById('lc-coins').textContent = levelCoins;
+            document.getElementById('lc-total').textContent = totalLevelScore;
+
+            // Render Stars
+            let starsContainer = document.getElementById('lc-stars');
+            starsContainer.innerHTML = '';
+            for (let s = 1; s <= 3; s++) {
+                if (s <= stars) starsContainer.innerHTML += '<i class="fa-solid fa-star text-amber-400"></i>';
+                else starsContainer.innerHTML += '<i class="fa-regular fa-star text-slate-600"></i>';
+            }
+
+            const btnNext = document.getElementById('btn-next-level');
+            if (currentLevelIndex + 1 >= levels.length) {
+                btnNext.innerHTML = 'VIEW FINAL RANK <i class="fa-solid fa-trophy ml-1"></i>';
+            } else {
+                btnNext.innerHTML = 'NEXT LEVEL <i class="fa-solid fa-arrow-right ml-1"></i>';
+            }
+
+            showModal('level-complete-modal');
+        }
+
+        function handleGameOver() {
+            isPlaying = false;
+            showModal('game-over-modal');
+        }
+
+        function showFinalSummary() {
+            let totalStars = 0;
+            let totalCareerCoins = 0;
+            let totalCareerScore = 0;
+
+            Object.values(userProgress.levelData).forEach(d => {
+                totalStars += d.stars || 0;
+                totalCareerScore += d.highScore || 0;
+            });
+
+            document.getElementById('fs-stars').textContent = `${totalStars} / 36 ⭐`;
+            document.getElementById('fs-coins').textContent = totalCoins;
+            document.getElementById('fs-score').textContent = totalCareerScore;
+
+            showModal('final-summary-modal');
+        }
+
+        function showModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function hideModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function hideAllModals() {
+            const modalIds = ['start-modal', 'level-select-modal', 'instructions-modal', 'pause-modal', 'level-complete-modal', 'game-over-modal', 'final-summary-modal'];
+            modalIds.forEach(id => hideModal(id));
+        }
+
+        // Render initial canvas background & load progress
+        renderLevelGrid();
+        render();
+    </script>
+</body>
+</html>
